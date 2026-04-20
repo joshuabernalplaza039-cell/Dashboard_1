@@ -1,7 +1,7 @@
 streamlit
 pandas
 plotly
-openpyxl
 streamlit-lottie
-scikit-learn
 requests
+scikit-learn
+openpyxl
