@@ -7,32 +7,25 @@ import requests
 from sklearn.linear_model import LinearRegression
 import time
 
-# 1. SETUP DE PÁGINA
-st.set_page_config(page_title="AI Data Intelligence", layout="wide", page_icon="🤖")
-
-# 2. CARGA DE ANIMACIONES LOTTIE
+## 1. Función de carga segura
 def load_lottieurl(url):
-    r = requests.get(url)
-    if r.status_code != 200: return None
-    return r.json()
+    try:
+        r = requests.get(url, timeout=5)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except:
+        return None
 
+# 2. Cargar las animaciones
 lottie_ai = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_dot7v6rs.json")
-lottie_success = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_7z6p7f.json")
 
-# 3. ESTILO CSS (SideBar Dark & Glassmorphism)
-st.markdown("""
-    <style>
-    [data-testid="stSidebar"] { background-color: #0F172A !important; }
-    .stApp { background-color: #F8FAFC; }
-    .ai-card {
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-        color: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2);
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# 3. Mostrar la animación solo si se cargó correctamente
+with st.sidebar:
+    if lottie_ai:
+        st_lottie(lottie_ai, height=150, key="ai_icon")
+    else:
+        st.markdown("🤖 **AI Core Active**") # Texto de respaldo si falla el JSON
 
 # 4. BARRA LATERAL
 with st.sidebar:
