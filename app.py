@@ -1,115 +1,123 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import numpy as np
+from streamlit_lottie import st_lottie
+import requests
+from sklearn.linear_model import LinearRegression
+import time
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="HOSPITAL-IQ | Intelligence Hub", layout="wide", page_icon="🏥")
+# 1. SETUP DE PÁGINA
+st.set_page_config(page_title="AI Data Intelligence", layout="wide", page_icon="🤖")
 
-# 2. ESTILO CSS (SideBar Midnight & Data Cards)
+# 2. CARGA DE ANIMACIONES LOTTIE
+def load_lottieurl(url):
+    r = requests.get(url)
+    if r.status_code != 200: return None
+    return r.json()
+
+lottie_ai = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_dot7v6rs.json")
+lottie_success = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_7z6p7f.json")
+
+# 3. ESTILO CSS (SideBar Dark & Glassmorphism)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { background-color: #0F172A !important; }
-    [data-testid="stSidebar"] * { color: #94A3B8 !important; }
-    .stMetric {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        border: 1px solid #E2E8F0;
+    .stApp { background-color: #F8FAFC; }
+    .ai-card {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2);
     }
-    h1, h2, h3 { color: #1E293B; font-weight: 700; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. BARRA LATERAL DINÁMICA
+# 4. BARRA LATERAL
 with st.sidebar:
-    st.markdown("<h2 style='color: white;'>CORE <span style='color: #3B82F6;'>ANALYTICS</span></h2>", unsafe_allow_html=True)
+    st_lottie(lottie_ai, height=150, key="ai_icon")
+    st.markdown("<h2 style='color: white; text-align: center;'>AI CORE</h2>", unsafe_allow_html=True)
     st.divider()
-    
-    modulo = st.selectbox("MÓDULO DE TRABAJO", ["📊 Dashboard Operativo", "🧪 Análisis de Calidad", "📦 Explorador de Datos"])
-    
-    st.divider()
-    archivo = st.file_uploader("Cargar Base de Datos", type=["csv"])
+    menu = st.radio("SISTEMA", ["🔮 Predicción IA", "📊 Insight Operativo", "🕵️ Auditoría"])
+    archivo = st.file_uploader("Actualizar Dataset", type=["csv"])
 
-# 4. PROCESAMIENTO Y GRÁFICAS
+# 5. LÓGICA CON IA
 if archivo:
     df = pd.read_csv(archivo)
-    df['Fecha'] = pd.to_datetime(df['Fecha']) # Asegurar formato fecha
-
-    if modulo == "📊 Dashboard Operativo":
-        st.title("Monitoreo de Gestión Hospitalaria")
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
+    
+    if menu == "🔮 Predicción IA":
+        st.title("Proyección Inteligente de Ingresos")
         
-        # KPIs Superiores
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Ingresos Totales", f"${df['Monto_USD'].sum():,.0f}", "+4.2%")
-        c2.metric("Ticket Promedio", f"${df['Monto_USD'].mean():,.2f}")
-        c3.metric("Satisfacción", f"{df['Satisfaccion_Cliente'].mean():.1f} / 5.0")
-        c4.metric("Tasa de Error", f"{(df['Estado_Pago'] == 'Error').mean()*100:.1f}%", "-1.2%", delta_color="inverse")
-
-        st.markdown("---")
-
-        # FILA 1: TENDENCIA TEMPORAL Y REGIONES
-        g1, g2 = st.columns([2, 1])
+        # --- MODELO DE IA (Regresión Lineal Simple) ---
+        # Preparamos los datos: convertir fechas a números ordinales
+        df_ai = df.groupby('Fecha')['Monto_USD'].sum().reset_index()
+        df_ai['Fecha_Ordinal'] = df_ai['Fecha'].map(datetime.toordinal)
         
-        with g1:
-            st.subheader("Evolución de Ingresos Mensuales")
-            df_time = df.set_index('Fecha').resample('M')['Monto_USD'].sum().reset_index()
-            fig_line = px.area(df_time, x='Fecha', y='Monto_USD', 
-                              line_shape='spline',
-                              color_discrete_sequence=['#3B82F6'])
-            fig_line.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_line, use_container_width=True)
-
-        with g2:
-            st.subheader("Distribución por Región")
-            fig_pie = px.pie(df, names='Region', hole=0.6,
-                            color_discrete_sequence=px.colors.sequential.Blues_r)
-            fig_pie.update_layout(showlegend=False)
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        # FILA 2: ESTADO DE PAGO Y DISPERSIÓN
-        g3, g4 = st.columns(2)
+        X = df_ai[['Fecha_Ordinal']].values
+        y = df_ai['Monto_USD'].values
         
-        with g3:
-            st.subheader("Estado de Transacciones por Cliente")
-            fig_bar = px.bar(df, x='Cliente', color='Estado_Pago', 
-                            barmode='group',
-                            color_discrete_map={'Completado':'#10B981', 'Pendiente':'#F59E0B', 'Error':'#EF4444', 'Cancelado':'#64748B'})
-            st.plotly_chart(fig_bar, use_container_width=True)
+        modelo = LinearRegression()
+        modelo.fit(X, y)
+        
+        # Predecir los próximos 30 días
+        ultima_fecha = df_ai['Fecha_Ordinal'].max()
+        fechas_futuras = np.array([ultima_fecha + i for i in range(1, 31)]).reshape(-1, 1)
+        predicciones = modelo.predict(fechas_futuras)
+        
+        # Visualización
+        st.markdown("""
+            <div class='ai-card'>
+                <h3>Análisis Predictivo Activado</h3>
+                <p>El modelo ha detectado una tendencia de crecimiento basada en los últimos registros.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            fig_pred = go.Figure()
+            fig_pred.add_trace(go.Scatter(x=df_ai['Fecha'], y=y, name='Histórico', line=dict(color='#3B82F6')))
+            fig_pred.add_trace(go.Scatter(x=[datetime.fromordinal(int(i)) for i in fechas_futuras], 
+                                         y=predicciones, name='Predicción IA', line=dict(dash='dash', color='#10B981')))
+            st.plotly_chart(fig_pred, use_container_width=True)
             
-        with g4:
-            st.subheader("Relación Monto vs Satisfacción")
-            fig_scatter = px.scatter(df, x='Monto_USD', y='Satisfaccion_Cliente', 
-                                    color='Region', size='Costo_Envio',
-                                    hover_name='ID_Transaccion',
-                                    color_discrete_sequence=px.colors.qualitative.Prism)
-            st.plotly_chart(fig_scatter, use_container_width=True)
+        with c2:
+            st.subheader("Métricas Predictivas")
+            st.write(f"**Crecimiento Estimado:** {modelo.coef_[0]:.2f} USD/día")
+            st.write(f"**Confianza del Modelo:** {modelo.score(X, y)*100:.1f}%")
+            if modelo.coef_[0] > 0:
+                st.success("Tendencia Positiva")
+            else:
+                st.error("Alerta: Tendencia a la baja")
 
-    elif modulo == "🧪 Análisis de Calidad":
-        st.title("Diagnóstico de Integridad del Dataset")
+    elif menu == "📊 Insight Operativo":
+        st.title("Business Insights")
+        # Animación de carga para simular "pensamiento" de IA
+        with st.spinner('IA analizando patrones...'):
+            time.sleep(1)
+            st_lottie(lottie_success, height=100, key="success")
         
-        col_err1, col_err2 = st.columns(2)
+        col1, col2 = st.columns(2)
+        with col1:
+            # Gráfico con animación de Plotly (burbujas animadas)
+            fig_anim = px.scatter(df, x="Monto_USD", y="Costo_Envio", 
+                                 animation_frame="Region", size="Satisfaccion_Cliente",
+                                 color="Estado_Pago", hover_name="ID_Transaccion",
+                                 log_x=True, size_max=55, range_x=[100,100000], range_y=[0,60])
+            st.plotly_chart(fig_anim, use_container_width=True)
         
-        with col_err1:
-            st.write("### Nulos por Atributo")
-            nulos = df.isnull().sum().reset_index()
-            nulos.columns = ['Campo', 'Faltantes']
-            fig_n = px.bar(nulos[nulos['Faltantes']>0], x='Campo', y='Faltantes', color_discrete_sequence=['#EF4444'])
-            st.plotly_chart(fig_n, use_container_width=True)
-            
-        with col_err2:
-            st.write("### Detección de Outliers (Z-Score)")
-            fig_box = px.box(df, y='Monto_USD', points="outliers", color_discrete_sequence=['#1E3A8A'])
-            st.plotly_chart(fig_box, use_container_width=True)
+        with col2:
+            st.subheader("Hallazgos Automáticos")
+            st.info(f"💡 La región con mejor desempeño es **{df.groupby('Region')['Monto_USD'].sum().idxmax()}**.")
+            st.info(f"💡 Se detectaron **{df.duplicated().sum()}** registros redundantes que afectan la veracidad.")
 
-    elif modulo == "📦 Explorador de Datos":
-        st.title("Explorador de Registros")
-        reg_sel = st.multiselect("Filtrar por Región:", df['Region'].unique())
-        if reg_sel:
-            df = df[df['Region'].isin(reg_sel)]
-        st.dataframe(df.style.highlight_null(color='#FFD1D1'), use_container_width=True)
+    elif menu == "🕵️ Auditoría":
+        st.title("Auditoría de Datos con Heurística")
+        st.dataframe(df.style.background_gradient(subset=['Monto_USD'], cmap='Blues'))
 
 else:
-    st.info("👋 Bienvenue. Por favor, cargue el archivo 'dataset_calidad_profesional.csv' para activar las gráficas.")
+    st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
+    st_lottie(lottie_ai, height=300)
+    st.header("Esperando Dataset para inicializar motores de IA...")
+    st.markdown("</div>", unsafe_allow_html=True)
