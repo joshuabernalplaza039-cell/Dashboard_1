@@ -1,108 +1,109 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import numpy as np
+import plotly.graph_objects as go
 
-# Configuración extendida
-st.set_page_config(page_title="Data Quality Pro", layout="wide")
+# 1. CONFIGURACIÓN DE MARCA Y ESTILO
+st.set_page_config(page_title="Data Insights Pro", layout="wide", page_icon="🔵")
 
-st.title("🚀 Dashboard Inteligente de Calidad de Datos")
-st.markdown("Analiza, limpia y explora la salud de tus datos de forma interactiva.")
+# CSS inyectado para mejorar la estética (Azules Profesionales)
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f0f2f6;
+    }
+    .stMetric {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 5px solid #003366;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+    [data-testid="stSidebar"] {
+        background-color: #001529;
+    }
+    [data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-archivo = st.file_uploader("Sube tu archivo CSV o Excel", type=["csv", "xlsx"])
+# 2. BARRA LATERAL (Sidebar)
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2040/2040523.png", width=80)
+    st.title("Data Engine")
+    st.info("Sube tu dataset para iniciar el diagnóstico de calidad.")
+    archivo = st.file_uploader("Cargar Archivo", type=["csv", "xlsx"])
+    
+    if archivo:
+        st.success("Archivo cargado con éxito")
+        st.divider()
+        st.markdown("### Configuración de Visualización")
+        tema_azul = st.select_slider("Intensidad de color", options=["Light", "Sky", "Navy"])
 
+# 3. LÓGICA DE DATOS
 if archivo:
-    # 1. Carga de datos con caché para velocidad
-    @st.cache_data
-    def load_data(file):
-        if file.name.endswith(".csv"):
-            return pd.read_csv(file)
-        return pd.read_excel(file)
-
-    df = load_data(archivo)
+    df = pd.read_csv(archivo) if archivo.name.endswith(".csv") else pd.read_excel(archivo)
     
-    # --- BARRA LATERAL: HERRAMIENTAS DE LIMPIEZA ---
-    st.sidebar.header("🛠️ Acciones de Limpieza")
-    if st.sidebar.button("Eliminar Duplicados"):
-        df = df.drop_duplicates()
-        st.sidebar.success("¡Duplicados eliminados!")
-
-    if st.sidebar.button("Eliminar Filas con Nulos"):
-        df = df.dropna()
-        st.sidebar.success("¡Nulos eliminados!")
-
-    # --- CÁLCULO DE MÉTRICAS ---
+    # Cálculos Pro
     filas, columnas = df.shape
-    nulos = df.isnull().sum().sum()
-    total_celdas = filas * columnas
-    porcentaje_nulos = (nulos / total_celdas) * 100 if total_celdas > 0 else 0
-    duplicados = df.duplicated().sum()
+    nulos_totales = df.isnull().sum().sum()
+    pct_nulos = (nulos_totales / (filas * columnas)) * 100
     
-    # Score de calidad dinámico
-    score = 100 - (porcentaje_nulos + (duplicados/filas*100 if filas > 0 else 0))
-    score = max(min(score, 100), 0)
+    # 4. HEADER Y KPIs
+    st.title("🔵 Business Intelligence Dashboard")
+    st.markdown("---")
+    
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Registros Totales", f"{filas:,}")
+    m2.metric("Dimensiones", f"{columnas} col")
+    m3.metric("Health Score", f"{100 - pct_nulos:.1f}%", delta=f"{-pct_nulos:.1f}%", delta_color="inverse")
+    m4.metric("Duplicados", f"{df.duplicated().sum()}")
 
-    # --- INTERFAZ POR PESTAÑAS ---
-    tab1, tab2, tab3 = st.tabs(["📊 Resumen General", "🔍 Análisis de Calidad", "📈 Exploración Variable"])
+    # 5. LAYOUT PRINCIPAL (Tabs con diseño limpio)
+    tab_data, tab_viz, tab_report = st.tabs(["📋 Explorador", "📈 Análisis Visual", "⚙️ Integridad"])
 
-    with tab1:
-        st.subheader("Indicadores Clave (KPIs)")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Filas", filas)
-        c2.metric("Total Columnas", columnas)
-        c3.metric("% Nulos", f"{porcentaje_nulos:.1f}%")
-        c4.metric("Calidad Global", f"{score:.1f}/100")
+    with tab_data:
+        st.subheader("Estructura del Dataset")
+        st.dataframe(df.head(20), use_container_width=True)
 
-        st.subheader("Vista Previa de los Datos")
-        st.dataframe(df.head(10), use_container_width=True)
-
-    with tab2:
-        st.subheader("Análisis Profundo de Integridad")
-        col_a, col_b = st.columns(2)
-
-        with col_a:
-            # Gráfico de nulos por columna
-            nulos_col = df.isnull().sum().reset_index()
-            nulos_col.columns = ["Columna", "Cantidad"]
-            fig_nulos = px.bar(nulos_col, x="Columna", y="Cantidad", 
-                             title="Huecos de información por columna",
-                             color="Cantidad", color_continuous_scale="Reds")
-            st.plotly_chart(fig_nulos, use_container_width=True)
-
-        with col_b:
-            # Tipos de datos
-            tipos = df.dtypes.value_counts().reset_index()
-            tipos.columns = ["Tipo", "Conteo"]
-            fig_tipos = px.pie(tipos, values="Conteo", names="Tipo", title="Distribución de tipos de datos")
-            st.plotly_chart(fig_tipos, use_container_width=True)
-
-    with tab3:
-        st.subheader("Análisis Estadístico e Interactivo")
-        columnas_num = df.select_dtypes(include=np.number).columns.tolist()
-
-        if columnas_num:
-            col_sel = st.selectbox("Selecciona una variable para analizar:", columnas_num)
-            
-            c_graf1, c_graf2 = st.columns(2)
-            
-            with c_graf1:
-                # Histograma dinámico
-                fig_hist = px.histogram(df, x=col_sel, marginal="box", 
-                                      title=f"Distribución y Outliers de {col_sel}",
-                                      color_discrete_sequence=['#636EFA'])
+    with tab_viz:
+        c1, c2 = st.columns([1, 1])
+        
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        
+        if num_cols:
+            with c1:
+                # Histograma en Tonos Azules
+                col_x = st.selectbox("Eje X (Distribución)", num_cols)
+                fig_hist = px.histogram(df, x=col_x, 
+                                      color_discrete_sequence=['#003366'],
+                                      template="plotly_white",
+                                      title=f"Distribución de {col_x}")
                 st.plotly_chart(fig_hist, use_container_width=True)
-            
-            with c_graf2:
-                # Matriz de Correlación
-                if len(columnas_num) > 1:
-                    corr = df[columnas_num].corr()
-                    fig_corr = px.imshow(corr, text_auto=True, title="Mapa de Calor: Correlaciones",
-                                       color_continuous_scale="RdBu_r")
-                    st.plotly_chart(fig_corr, use_container_width=True)
-        else:
-            st.warning("No se detectaron columnas numéricas para este análisis.")
+                
+            with c2:
+                # Scatter Plot (Relación)
+                if len(num_cols) > 1:
+                    col_y = st.selectbox("Eje Y (Relación)", num_cols, index=1)
+                    fig_scat = px.scatter(df, x=col_x, y=col_y, 
+                                        color_discrete_sequence=['#1f77b4'],
+                                        template="plotly_white",
+                                        title="Correlación entre Variables")
+                    st.plotly_chart(fig_scat, use_container_width=True)
 
-    # --- BOTÓN DE DESCARGA ---
-    st.sidebar.markdown("---")
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.sidebar.download_button("📥 Descargar Datos Limpios", data=csv, file_name="datos_procesados.csv", mime="text/csv")
+    with tab_report:
+        st.subheader("Mapa de Calor de Datos Faltantes")
+        # Gráfico de barras de nulos estilizado
+        nulos_data = df.isnull().sum().reset_index()
+        nulos_data.columns = ["Columna", "Faltantes"]
+        
+        fig_nulos = px.bar(nulos_data, x="Faltantes", y="Columna", 
+                         orientation='h',
+                         color="Faltantes",
+                         color_continuous_scale=["#e0f3f8", "#084594"],
+                         title="Nulos por Variable")
+        st.plotly_chart(fig_nulos, use_container_width=True)
+
+else:
+    st.warning("👈 Por favor, sube un archivo en la barra lateral para comenzar.")
